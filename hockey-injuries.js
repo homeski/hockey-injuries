@@ -1,3 +1,4 @@
+var async = require('async');
 var cheerio = require('cheerio');
 var fs = require('fs-extra');
 var redis = require("redis");
@@ -31,6 +32,7 @@ var getPlayers = function(html) {
 
 			player = {
 				id:      $(attrs[1]).find('.playercard').attr('id'),
+				key:		'player:' + $(attrs[1]).find('.playercard').attr('id'),
 				hash:    null,
 				team:    team,
 				name:    $(attrs[0]).text(),
@@ -52,32 +54,33 @@ var getPlayers = function(html) {
 }
 
 var insertPlayers = function(players, cb) {
-	for (var i = 0; i < players.length; i++) {
-		player = players[i];
-		key = 'player:' + player.id;
-
-		echo(vsprintf("searching: %s", [key]));
-		client.get(key, function(err, res) {
-			if (err) echo(err);
+	async.each(players, function(player, callback) {
+		client.get(player.key, function(err, res) {
 			if (res == null) {
-				echo(vsprintf('set: %s %s', [this.playerKey, this.playerName]));
-				client.set(this.playerKey, this.playerName, function(err, result) {
-					echo(err);
-					echo(result);
+				client.set(this.player.key, JSON.stringify(this.player), function(err, result) {
+					callback();
 				});
+			} else {
+				callback();
 			}
+
 		}.bind({
-			playerKey: key,
-			playerName: player.name
+			player: player
 		}));
-	}
+	},
+	function(err) {
+		if (err) echo(err);
+
+		cb();
+	});
 };
 
 fs.readFile(file, (err, data) => {
 	if (err) throw err;
 
 	var players = getPlayers(data.toString());
-	insertPlayers(players);
-	
+	insertPlayers(players, function() {
+		client.quit();
+	});
 });
 
