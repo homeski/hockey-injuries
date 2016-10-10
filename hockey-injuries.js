@@ -8,9 +8,10 @@ var client = redis.createClient({
 	host: '0.0.0.0'
 });
 var file = process.argv[2];
+DEBUG = process.argv[3] === 'd' ? true : false;
 
 var echo = function(str) {
-	console.log(str);
+	if (DEBUG) console.log(str);
 }
 
 client.on("error", function (err) {
@@ -44,7 +45,7 @@ var getPlayers = function(html) {
 				returns: $(attrs[6]).text()
 			};
 
-			player.hash = player.status + player.date + player.injury + player.returns;
+			player.hash = player.info + player.status + player.date + player.injury + player.returns;
 
 			list.push(player);
 		});
@@ -54,13 +55,26 @@ var getPlayers = function(html) {
 }
 
 var insertPlayers = function(players, cb) {
+	changes = [];
+	// For each player in HTML
 	async.each(players, function(player, callback) {
+		echo(player.key);
+		// Find it's key in redis
 		client.get(player.key, function(err, res) {
+			// If not found then add the key
 			if (res == null) {
 				client.set(this.player.key, JSON.stringify(this.player), function(err, result) {
 					callback();
 				});
+			// If found then check for hash difference
 			} else {
+				res = JSON.parse(res);
+
+				// player hash has changed
+				//	treat this as an update
+				if (res.hash !== this.player.hash) {
+					changes.push(res);
+				}
 				callback();
 			}
 
@@ -71,7 +85,7 @@ var insertPlayers = function(players, cb) {
 	function(err) {
 		if (err) echo(err);
 
-		cb();
+		cb(changes);
 	});
 };
 
@@ -79,7 +93,8 @@ fs.readFile(file, (err, data) => {
 	if (err) throw err;
 
 	var players = getPlayers(data.toString());
-	insertPlayers(players, function() {
+	insertPlayers(players, function(delta) {
+		echo(delta);
 		client.quit();
 	});
 });
