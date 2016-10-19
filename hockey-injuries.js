@@ -1,14 +1,34 @@
 var async = require('async');
+var auth = require('./mail-auth.json');
 var cheerio = require('cheerio');
 var fs = require('fs-extra');
+var handlebars = require('handlebars');
+var nodemailer = require('nodemailer');
 var redis = require("redis");
-var vsprintf = require('sprintf-js').vsprintf
+var vsprintf = require('sprintf-js').vsprintf;
 
 var client = redis.createClient({
 	host: '0.0.0.0'
 });
 var file = process.argv[2];
-DEBUG = process.argv[3] === 'd' ? true : false;
+
+var DEBUG,
+	EMAIL = false;
+
+while(true) {
+	shift = process.argv.pop();
+
+	switch (shift) {
+		case 'd':
+			DEBUG = shift === 'd' ? true : false;
+			continue;
+		case 'e':
+			EMAIL = shift === 'e' ? true : false;
+			continue;
+	}
+
+	if (process.argv.length == 0) break;
+}
 
 var echo = function(str) {
 	if (DEBUG) console.log(str);
@@ -83,11 +103,47 @@ var insertPlayers = function(players, cb) {
 		}));
 	},
 	function(err) {
-		if (err) echo(err);
+		if (err) console.log(err);
 
 		cb(changes);
 	});
 };
+
+var sendmail = function(message) {
+	// setup e-mail data with unicode symbols
+	var mailOptions = {
+		from: '"homeski" <homeski2@gmail.com>', // sender address
+		to: 'homeski@cox.net', // list of receivers
+		subject: 'hockey injuries', // Subject line
+		text: message, // plaintext body
+		html: message // html body
+	};
+
+	// create reusable transporter object using the default SMTP transport
+	var transporter = nodemailer.createTransport(vsprintf('smtps://%s:%s@smtp.gmail.com', [auth.user, auth.pass]));
+
+	transporter.sendMail(mailOptions, function(error, info){
+		if(error){
+			return console.log(error);
+		}
+
+		echo('Message sent: ' + info.response);
+	});
+}
+
+function template(delta) {
+	source = `
+		<ul>
+			{{#each players}}
+			<li>{{name}}</li>
+			{{/each}}
+		</ul>
+		`
+	var template = handlebars.compile(source);
+
+	return(template(delta));
+	
+}
 
 fs.readFile(file, (err, data) => {
 	if (err) throw err;
@@ -95,6 +151,12 @@ fs.readFile(file, (err, data) => {
 	var players = getPlayers(data.toString());
 	insertPlayers(players, function(delta) {
 		echo(delta);
+		
+		if (EMAIL)
+			sendmail(template({
+				players: delta
+			}));
+		
 		client.quit();
 	});
 });
