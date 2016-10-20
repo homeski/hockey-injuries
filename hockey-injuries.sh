@@ -10,4 +10,4 @@ mkdir -p $FOLDER
 
 wget http://www.rotoworld.com/teams/injuries/nhl/all/ -O $FILE
 
-node hockey-injuries.js $FILE $1
+node hockey-injuries.js $FILE $1 $2
