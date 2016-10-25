@@ -87,9 +87,9 @@ var insertPlayers = function(players, cb) {
 				// treat this as an update
 				changes.push(this.player);
 
-				client.set(this.player.key, JSON.stringify(this.player), function(err, result) {
-					callback();
-				});
+				// save new player to redis
+				client.set(this.player.key, JSON.stringify(this.player));
+			
 			// If found then check for hash difference
 			} else {
 				res = JSON.parse(res);
@@ -98,9 +98,13 @@ var insertPlayers = function(players, cb) {
 				//	treat this as an update
 				if (res.hash !== this.player.hash) {
 					changes.push(res);
+
+					// save updated player to redis
+					client.set(this.player.key, JSON.stringify(this.player));
 				}
-				callback();
 			}
+			
+			callback();
 
 		}.bind({
 			player: player
@@ -362,7 +366,7 @@ fs.readFile(file, (err, data) => {
 	insertPlayers(players, function(delta) {
 		echo(delta);
 		
-		if (EMAIL)
+		if (EMAIL && delta.length > 0)
 			sendmail(template({
 				players: delta
 			}));
