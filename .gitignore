@@ -4,4 +4,4 @@ node_modules/
 *.swp
 mail-auth.json
 npm-debug.log
-
+sftp-config.json

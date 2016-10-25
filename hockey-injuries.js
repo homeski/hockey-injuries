@@ -83,11 +83,11 @@ var insertPlayers = function(players, cb) {
 		client.get(player.key, function(err, res) {
 			// If not found then add the key
 			if (res == null) {
-				client.set(this.player.key, JSON.stringify(this.player), function(err, result) {
-					// a new injured player is found
-					//	treat this as an update
-					changes.push(this.player);
+				// a new injured player is found
+				// treat this as an update
+				changes.push(this.player);
 
+				client.set(this.player.key, JSON.stringify(this.player), function(err, result) {
 					callback();
 				});
 			// If found then check for hash difference
